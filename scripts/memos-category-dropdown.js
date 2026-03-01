@@ -1,11 +1,16 @@
 // ============================================================================
 // FILE: memos-category-dropdown.js
 // PURPOSE: Inject a category picker dropdown into the Memos editor
-// INSTALL: Built into the Memos container, or paste into Memos Admin > Settings > Custom Script
+// INSTALL: Paste into Memos Admin > Settings > Custom Script
 // ============================================================================
 //
-// All tuneable values are fetched from the router's /web-config endpoint.
-// The only value derived locally is the router URL (same hostname, configured port).
+// ROUTER_URL DISCOVERY:
+// 1. Tries /web-config on same origin (works if reverse-proxied on same domain)
+// 2. Tries router.DOMAIN/web-config (convention: replace first subdomain with "router")
+// 3. Falls back to ROUTER_URL_OVERRIDE if set below
+//
+// To hardcode the router URL, set this before pasting:
+//   var ROUTER_URL_OVERRIDE = "https://router.chonkie.io";
 // ============================================================================
 
 (function () {
@@ -17,25 +22,38 @@
 
     let categories = [];
     let dropdownInjected = false;
-    let configLoaded = false;
 
     async function loadConfig() {
-        const baseUrl =
-            window.location.protocol + "//" + window.location.hostname;
+        var candidates = [];
 
-        const portCandidates = [8780];
+        // If user set an override, try that first
+        if (typeof ROUTER_URL_OVERRIDE !== "undefined" && ROUTER_URL_OVERRIDE) {
+            candidates.push(ROUTER_URL_OVERRIDE);
+        }
 
-        for (const port of portCandidates) {
+        // Convention: replace first subdomain with "router"
+        // e.g. memos.chonkie.io → router.chonkie.io
+        var host = window.location.hostname;
+        var parts = host.split(".");
+        if (parts.length >= 2) {
+            parts[0] = "router";
+            var routerHost = window.location.protocol + "//" + parts.join(".");
+            candidates.push(routerHost);
+        }
+
+        // Also try same host on port 8780 (for local/dev without reverse proxy)
+        candidates.push(window.location.protocol + "//" + host + ":8780");
+
+        for (var i = 0; i < candidates.length; i++) {
             try {
-                const resp = await fetch(baseUrl + ":" + port + "/web-config");
+                var resp = await fetch(candidates[i] + "/web-config");
                 if (!resp.ok) continue;
-                const cfg = await resp.json();
-                ROUTER_URL = baseUrl + ":" + (cfg.router_port || port);
+                var cfg = await resp.json();
+                ROUTER_URL = candidates[i];
                 TAG_PREFIX = cfg.tag_prefix || TAG_PREFIX;
                 POLL_INTERVAL_MS = cfg.poll_interval_ms || POLL_INTERVAL_MS;
                 REFRESH_INTERVAL_MS = cfg.refresh_interval_ms || REFRESH_INTERVAL_MS;
                 DEBOUNCE_MS = cfg.debounce_ms || DEBOUNCE_MS;
-                configLoaded = true;
                 console.log("[MemoRouter] Config loaded from " + ROUTER_URL);
                 return;
             } catch (err) {
@@ -43,15 +61,15 @@
             }
         }
 
-        ROUTER_URL = baseUrl + ":8780";
-        console.warn("[MemoRouter] Could not load config, using defaults");
+        console.warn("[MemoRouter] Could not reach router at any candidate URL");
     }
 
     async function fetchCategories() {
+        if (!ROUTER_URL) return [];
         try {
-            const resp = await fetch(ROUTER_URL + "/categories");
+            var resp = await fetch(ROUTER_URL + "/categories");
             if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const data = await resp.json();
+            var data = await resp.json();
             categories = data.categories || [];
             console.log(
                 "[MemoRouter] Loaded " + categories.length + " categories"
@@ -64,7 +82,7 @@
     }
 
     function injectDropdown() {
-        const editorToolbar = document.querySelector(
+        var editorToolbar = document.querySelector(
             ".memo-editor .editor-header, .memo-editor-header, .editor-actions"
         );
 
@@ -72,14 +90,14 @@
 
         if (document.getElementById("memo-category-picker")) return true;
 
-        const container = document.createElement("div");
+        var container = document.createElement("div");
         container.id = "memo-category-picker";
         container.style.cssText =
             "display:flex; gap:4px; padding:4px 8px; flex-wrap:wrap; " +
             "border-bottom:1px solid var(--border-color, #e0e0e0); " +
             "background:var(--bg-secondary, #f9f9f9); align-items:center;";
 
-        const label = document.createElement("span");
+        var label = document.createElement("span");
         label.textContent = "Box:";
         label.style.cssText =
             "font-size:12px; color:var(--text-secondary, #888); " +
@@ -87,7 +105,7 @@
         container.appendChild(label);
 
         categories.forEach(function (cat) {
-            const btn = document.createElement("button");
+            var btn = document.createElement("button");
             btn.textContent = "#" + cat.slug;
             btn.title = cat.description || cat.slug;
             btn.style.cssText =
@@ -122,13 +140,13 @@
     }
 
     function insertTag(tag) {
-        const textarea = document.querySelector(
+        var textarea = document.querySelector(
             ".memo-editor textarea, .editor-inputer textarea"
         );
 
         if (textarea) {
-            const hashTag = "#" + tag + " ";
-            const currentContent = textarea.value;
+            var hashTag = "#" + tag + " ";
+            var currentContent = textarea.value;
 
             if (currentContent.includes("#" + tag)) {
                 console.log("[MemoRouter] Tag already present: #" + tag);
@@ -137,7 +155,7 @@
 
             textarea.value = hashTag + currentContent;
 
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                 window.HTMLTextAreaElement.prototype,
                 "value"
             ).set;
@@ -151,19 +169,19 @@
             return;
         }
 
-        const editable = document.querySelector(
+        var editable = document.querySelector(
             '.memo-editor [contenteditable="true"], .cm-content'
         );
 
         if (editable) {
-            const hashTag = "#" + tag + " ";
+            var hashTag = "#" + tag + " ";
 
             if (editable.textContent.includes("#" + tag)) {
                 console.log("[MemoRouter] Tag already present: #" + tag);
                 return;
             }
 
-            const textNode = document.createTextNode(hashTag);
+            var textNode = document.createTextNode(hashTag);
             if (editable.firstChild) {
                 editable.insertBefore(textNode, editable.firstChild);
             } else {
@@ -179,15 +197,15 @@
     }
 
     function startObserver() {
-        let lastCheck = 0;
+        var lastCheck = 0;
 
-        const observer = new MutationObserver(function () {
-            const now = Date.now();
+        var observer = new MutationObserver(function () {
+            var now = Date.now();
             if (now - lastCheck < DEBOUNCE_MS) return;
             lastCheck = now;
 
-            const editor = document.querySelector(".memo-editor");
-            const picker = document.getElementById("memo-category-picker");
+            var editor = document.querySelector(".memo-editor");
+            var picker = document.getElementById("memo-category-picker");
 
             if (editor && !picker && categories.length > 0) {
                 injectDropdown();
@@ -203,9 +221,7 @@
 
         if (categories.length === 0) {
             console.warn(
-                "[MemoRouter] No categories loaded. Is the router service running at " +
-                ROUTER_URL +
-                "?"
+                "[MemoRouter] No categories loaded. Is the router running?"
             );
         }
 
@@ -214,7 +230,7 @@
 
         setInterval(async function () {
             await fetchCategories();
-            const existing = document.getElementById("memo-category-picker");
+            var existing = document.getElementById("memo-category-picker");
             if (existing) existing.remove();
             injectDropdown();
         }, REFRESH_INTERVAL_MS);

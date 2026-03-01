@@ -367,30 +367,29 @@ docker compose up -d
 
 ### Reverse proxy (Caddy — automatic HTTPS)
 
-```bash
-apt install caddy
-```
+Caddy is included in `docker-compose.yml` and configured via `caddy/Caddyfile`. It auto-provisions HTTPS certificates for both domains.
+
+**DNS setup:** Create two A records pointing to your server's IP address — both use the **same IP**:
 
 ```
-# /etc/caddy/Caddyfile
-memos.yourdomain.com {
-    reverse_proxy localhost:5230
-}
-
-router.yourdomain.com {
-    reverse_proxy localhost:8780
-}
+memos.yourdomain.com  → YOUR_SERVER_IP
+router.yourdomain.com → YOUR_SERVER_IP  (same IP)
 ```
+
+Caddy routes traffic to the correct container based on the domain name. Set the domains in `.env`:
 
 ```bash
-systemctl restart caddy
+MEMOS_DOMAIN=memos.yourdomain.com
+ROUTER_DOMAIN=router.yourdomain.com
 ```
+
+The JS category dropdown uses the router domain to fetch categories over HTTPS.
 
 ### Firewall
 
 ```bash
 ufw allow 22       # SSH
-ufw allow 80       # Caddy HTTP
+ufw allow 80       # Caddy HTTP (redirects to HTTPS)
 ufw allow 443      # Caddy HTTPS
 ufw enable
 ```

@@ -1,22 +1,40 @@
 # ============================================================================
-# MEMOS ROUTER STACK - 3 CONTAINER ARCHITECTURE
+# MEMOS ROUTER STACK - 4 SERVICES
 #
-# Container 1: memos  — Memos server with JS injection
-# Container 2: db     — PostgreSQL database
-# Container 3: api    — FastAPI router (webhook, classification, events)
+# 1. caddy  — Reverse proxy with automatic HTTPS
+# 2. memos  — Memos server with JS injection
+# 3. db     — PostgreSQL database
+# 4. api    — FastAPI router (webhook, classification, events)
 #
 # ALL VERSIONS come from .env, which mirrors config/versions.yaml.
 # No version is hardcoded in any Dockerfile or compose file.
 #
 # DEPLOYMENT OPTIONS:
 #   Full stack:    docker compose up -d
-#   Memos only:    docker compose up -d memos
-#   Without DB:    docker compose up -d memos api  (uses SQLite)
+#   Memos only:    docker compose up -d caddy memos
+#   Without DB:    docker compose up -d caddy memos api  (uses SQLite)
 #   With ext DB:   Set DATABASE_URL in .env, skip db service
 # ============================================================================
 
 services:
-  # ---- Container 1: Memos Server ----
+  # ---- Caddy Reverse Proxy (automatic HTTPS) ----
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - MEMOS_DOMAIN=${MEMOS_DOMAIN:?Set MEMOS_DOMAIN in .env (e.g. memos.chonkie.io)}
+      - ROUTER_DOMAIN=${ROUTER_DOMAIN:?Set ROUTER_DOMAIN in .env (e.g. router.chonkie.io)}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # ---- Memos Server ----
   memos:
     build:
       context: .
@@ -25,20 +43,19 @@ services:
         MEMOS_VERSION: ${MEMOS_VERSION}
     container_name: memos-server
     restart: unless-stopped
+    expose:
+      - "5230"
     ports:
       - "${MEMOS_PORT:-5230}:5230"
     volumes:
       - ${MEMOS_DATA_DIR:?Set MEMOS_DATA_DIR in .env (e.g. /opt/memos/data)}:/var/opt/memos
-    networks:
-      - default
-      - caddy-net
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:5230/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  # ---- Container 2: PostgreSQL Database ----
+  # ---- PostgreSQL Database ----
   db:
     build:
       context: ./database
@@ -61,7 +78,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ---- Container 3: API Router ----
+  # ---- API Router ----
   api:
     build:
       context: .
@@ -72,10 +89,12 @@ services:
     restart: unless-stopped
     stdin_open: true
     tty: true
+    expose:
+      - "8780"
     ports:
       - "${ROUTER_PORT:-8780}:8780"
     environment:
-      - MEMOS_BASE_URL=http://memos:5230
+      - MEMOS_BASE_URL=http://memos-server:5230
       - MEMOS_API_TOKEN=${MEMOS_API_TOKEN}
       - CATEGORY_MEMO_UID=${CATEGORY_MEMO_UID}
       - DATABASE_URL=${DATABASE_URL:-postgresql://router:${POSTGRES_PASSWORD}@db:5432/memos_router}
@@ -91,12 +110,11 @@ services:
       db:
         condition: service_healthy
 
-networks:
-  caddy-net:
-    external: true
-    name: memos_memos-net
-
 volumes:
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
   postgres-data:
     driver: local
   router-data:

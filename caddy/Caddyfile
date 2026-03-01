@@ -1,0 +1,19 @@
+# Both domains point to the same server IP.
+# Caddy routes to the correct container based on the domain name
+# and auto-provisions HTTPS certificates for both.
+#
+# DNS setup: create two A records pointing to your server's IP:
+#   memos.yourdomain.com  → YOUR_SERVER_IP
+#   router.yourdomain.com → YOUR_SERVER_IP  (same IP)
+
+{$MEMOS_DOMAIN} {
+    reverse_proxy memos-server:5230
+
+    request_body {
+        max_size 50MB
+    }
+}
+
+{$ROUTER_DOMAIN} {
+    reverse_proxy memos-router-api:8780
+}
