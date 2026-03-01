@@ -15,6 +15,7 @@ LABEL description="Memos Router API - webhook receiver, classifier, event log"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
 WORKDIR /app
 
