@@ -66,7 +66,7 @@ Memos breaks its API between minor versions. Always pin the version:
 ```yaml
 # config/versions.yaml
 images:
-  memos: "0.24.1"
+  memos: "0.26.1"
 ```
 
 Then update `MEMOS_VERSION` in `.env` to match. Before upgrading:

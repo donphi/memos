@@ -28,7 +28,10 @@ services:
     ports:
       - "${MEMOS_PORT:-5230}:5230"
     volumes:
-      - memos-data:/var/opt/memos
+      - ${MEMOS_DATA_DIR:?Set MEMOS_DATA_DIR in .env (e.g. /opt/memos/data)}:/var/opt/memos
+    networks:
+      - default
+      - caddy-net
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:5230/healthz"]
       interval: 30s
@@ -88,9 +91,12 @@ services:
       db:
         condition: service_healthy
 
+networks:
+  caddy-net:
+    external: true
+    name: memos_memos-net
+
 volumes:
-  memos-data:
-    driver: local
   postgres-data:
     driver: local
   router-data:

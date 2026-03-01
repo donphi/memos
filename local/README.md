@@ -21,7 +21,7 @@ cd local/
 # Create your local .env
 cat > .env << 'EOF'
 # Versions (from config/versions.yaml)
-MEMOS_VERSION=0.24.1
+MEMOS_VERSION=0.26.1
 PYTHON_VERSION=3.12-slim
 POSTGRES_VERSION=16-alpine
 

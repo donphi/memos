@@ -6,7 +6,7 @@
 
 # ---- Container Base Images ----
 images:
-  memos: "0.24.1"                # neosmemo/memos tag — read changelog before bumping
+  memos: "0.26.1"                # neosmemo/memos tag — read changelog before bumping
   python: "3.12-slim"            # Python base for API container
   postgres: "16-alpine"          # PostgreSQL base for database container
 

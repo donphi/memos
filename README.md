@@ -133,7 +133,7 @@ Every version number for images and dependencies:
 
 | Section | Keys |
 |---------|------|
-| `images.memos` | Memos server image tag (e.g. `0.24.1`) |
+| `images.memos` | Memos server image tag (e.g. `0.26.1`) |
 | `images.python` | Python base image tag (e.g. `3.12-slim`) |
 | `images.postgres` | PostgreSQL base image tag (e.g. `16-alpine`) |
 | `python_packages.*` | Every pinned Python dependency version |
