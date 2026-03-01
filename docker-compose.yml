@@ -1,0 +1,97 @@
+# ============================================================================
+# MEMOS ROUTER STACK - 3 CONTAINER ARCHITECTURE
+#
+# Container 1: memos  — Memos server with JS injection
+# Container 2: db     — PostgreSQL database
+# Container 3: api    — FastAPI router (webhook, classification, events)
+#
+# ALL VERSIONS come from .env, which mirrors config/versions.yaml.
+# No version is hardcoded in any Dockerfile or compose file.
+#
+# DEPLOYMENT OPTIONS:
+#   Full stack:    docker compose up -d
+#   Memos only:    docker compose up -d memos
+#   Without DB:    docker compose up -d memos api  (uses SQLite)
+#   With ext DB:   Set DATABASE_URL in .env, skip db service
+# ============================================================================
+
+services:
+  # ---- Container 1: Memos Server ----
+  memos:
+    build:
+      context: .
+      dockerfile: memos/Dockerfile
+      args:
+        MEMOS_VERSION: ${MEMOS_VERSION}
+    container_name: memos-server
+    restart: unless-stopped
+    ports:
+      - "${MEMOS_PORT:-5230}:5230"
+    volumes:
+      - memos-data:/var/opt/memos
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5230/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---- Container 2: PostgreSQL Database ----
+  db:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+      args:
+        POSTGRES_VERSION: ${POSTGRES_VERSION}
+    container_name: memos-router-db
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: memos_router
+      POSTGRES_USER: router
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U router -d memos_router"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Container 3: API Router ----
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION}
+    container_name: memos-router-api
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    ports:
+      - "${ROUTER_PORT:-8780}:8780"
+    environment:
+      - MEMOS_BASE_URL=http://memos:5230
+      - MEMOS_API_TOKEN=${MEMOS_API_TOKEN}
+      - CATEGORY_MEMO_UID=${CATEGORY_MEMO_UID}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://router:${POSTGRES_PASSWORD}@db:5432/memos_router}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_CLASSIFY_ENABLED=${LLM_CLASSIFY_ENABLED:-}
+    volumes:
+      - router-data:/app/data
+      - ./config:/app/config:ro
+    depends_on:
+      memos:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+volumes:
+  memos-data:
+    driver: local
+  postgres-data:
+    driver: local
+  router-data:
+    driver: local

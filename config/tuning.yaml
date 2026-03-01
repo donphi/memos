@@ -1,0 +1,79 @@
+# ============================================================================
+# MEMOS ROUTER - TUNING CONFIGURATION
+# Every hyperparameter, threshold, timeout, model setting, and tuneable
+# value lives here. Nothing is hardcoded in source.
+# ============================================================================
+
+# ---- Memos Connection Tuning ----
+memos:
+  request_timeout_seconds: 30
+  api_token: ""                           # Override: MEMOS_API_TOKEN
+
+# ---- Category System ----
+categories:
+  memo_uid: ""                            # Override: CATEGORY_MEMO_UID
+  tag_prefix: "box/"                      # Tags like #box/health route to "health"
+  default_category: "inbox"               # Where unrouted memos land
+  sync_on_startup: true                   # Re-sync categories when router starts
+
+# ---- Routing Behaviour ----
+routing:
+  enable_content_scan: true               # Scan raw content for #box/ patterns
+  enable_llm_fallback: false              # Use LLM for untagged memos
+  ignore_tags:
+    - "draft"
+    - "scratch"
+
+# ---- LLM Provider Tuning ----
+llm:
+  provider: "openrouter"                  # "openrouter", "anthropic", "ollama", "openai_compatible"
+  api_key: ""                             # Override: LLM_API_KEY
+  request_timeout_seconds: 15
+  max_retries: 2
+  anthropic_api_version: "2023-06-01"     # Anthropic-specific header value
+
+  models:
+    classify:
+      id: "anthropic/claude-sonnet-4-20250514"
+      max_tokens: 30                      # Classification needs very few tokens
+      temperature: 0.0                    # Deterministic classification
+    action_generate:
+      id: "anthropic/claude-sonnet-4-20250514"
+      max_tokens: 2000                    # Action files need more space
+      temperature: 0.3                    # Slight creativity for phrasing
+    summarise:
+      id: "anthropic/claude-haiku-3.5-20241022"
+      max_tokens: 500
+      temperature: 0.1
+
+  extra_headers:
+    HTTP-Referer: "https://memos-router.local"
+    X-Title: "Memos Router"
+
+# ---- Database Tuning ----
+database:
+  echo: false                             # Set true for SQL query logging
+
+# ---- Event Log Tuning ----
+events:
+  preview_length: 200                     # Characters of content preview in routing table
+  diff_format: "unified"                  # "unified" or "context" diff style
+  recent_memos_limit: 20                  # Default limit for recent memo queries
+  action_history_limit: 20                # Default limit for action git log
+
+# ---- Server Tuning ----
+server:
+  log_level: "info"
+  cors_origins:
+    - "*"                                 # Tighten to your Memos domain in production
+
+# ---- Web UI Injection Tuning ----
+web_ui:
+  dropdown_refresh_interval_ms: 300000    # How often JS dropdown refreshes categories (5 min)
+  dropdown_poll_interval_ms: 2000         # How often to check if editor DOM exists
+  mutation_observer_debounce_ms: 1000     # Debounce for MutationObserver re-injection
+
+# ---- Debug / Logging Tuning ----
+debug:
+  llm_response_preview_length: 100        # Chars to show in debug log for LLM responses
+  llm_error_preview_length: 200           # Chars to show in error log for LLM errors

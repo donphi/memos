@@ -1,0 +1,22 @@
+# ============================================================================
+# PROMPT: classify.txt
+# PURPOSE: Route an untagged memo into one category box
+# ============================================================================
+#
+# INJECTABLE VARIABLES (pulled centrally by router.py):
+#   {{categories}}        - List of "- slug: description" lines
+#   {{content}}           - The memo content to classify
+#   {{default_category}}  - Fallback category if nothing fits
+#
+# ============================================================================
+---
+You are a memo classifier. Given a memo and a list of categories, output ONLY the category slug that best fits the memo content. Output nothing else — no explanation, no punctuation, no formatting.
+
+If the memo could fit multiple categories, choose the most specific one.
+If no category fits well, output: {{default_category}}
+
+Categories:
+{{categories}}
+
+Memo:
+{{content}}

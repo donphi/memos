@@ -1,0 +1,26 @@
+# ============================================================================
+# MEMOS ROUTER - VERSION PINNING
+# Every version number lives here. Nothing is hardcoded in Dockerfiles,
+# requirements.txt, or compose files. Update versions here deliberately.
+# ============================================================================
+
+# ---- Container Base Images ----
+images:
+  memos: "0.24.1"                # neosmemo/memos tag — read changelog before bumping
+  python: "3.12-slim"            # Python base for API container
+  postgres: "16-alpine"          # PostgreSQL base for database container
+
+# ---- Python Dependencies ----
+# These are written to requirements.txt by the build process.
+# Pin deliberately — test before bumping.
+python_packages:
+  fastapi: "0.115.6"
+  uvicorn: "0.34.0"
+  httpx: "0.28.1"
+  sqlalchemy: "2.0.36"
+  alembic: "1.14.0"
+  rich: "13.9.4"
+  pydantic: "2.10.3"
+  pydantic-settings: "2.7.0"
+  pyyaml: "6.0.2"
+  psycopg2-binary: "2.9.9"

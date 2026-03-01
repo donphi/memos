@@ -1,0 +1,47 @@
+# ============================================================================
+# MEMOS ROUTER - PATH CONFIGURATION
+# Every file path, URL, directory, and location reference lives here.
+# Nothing is hardcoded in source. Override with environment variables.
+# ============================================================================
+
+# ---- Memos Server ----
+memos:
+  base_url: "http://localhost:5230"       # Override: MEMOS_BASE_URL
+  api_version: "v1"                       # Memos REST API version segment
+  webhook_url: "http://router:8780/webhook"  # URL printed in seed script instructions
+
+# ---- Database ----
+database:
+  url: "sqlite:///data/router.db"         # Override: DATABASE_URL
+  # Postgres example: "postgresql://router:password@db:5432/memos_router"
+
+# ---- LLM Provider ----
+llm:
+  base_url: "https://openrouter.ai/api/v1"  # Override: LLM_BASE_URL
+  # Anthropic direct: "https://api.anthropic.com"
+  # Ollama local:     "http://ollama:11434"
+
+# ---- Server ----
+server:
+  host: "0.0.0.0"
+  port: 8780                              # Override: ROUTER_PORT
+
+# ---- Data Directories ----
+data:
+  actions_dir: "/app/data/actions"        # Git-tracked LLM action outputs
+  data_dir: "/app/data"                   # Root data directory inside container
+
+# ---- Prompts ----
+prompts:
+  dir: "config/prompts"                   # Relative to project root
+
+# ---- Git Identity (for action file commits) ----
+git:
+  user_email: "memos-router@local"
+  user_name: "Memos Router"
+
+# ---- Container Networking ----
+containers:
+  memos_internal_url: "http://memos:5230"    # Docker-internal URL for memos
+  router_internal_url: "http://router:8780"  # Docker-internal URL for router
+  db_internal_url: "postgresql://router:${POSTGRES_PASSWORD}@db:5432/memos_router"
