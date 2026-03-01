@@ -24,18 +24,26 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config_loader import Config
 from src.memos_adapter import MemosAdapter
 
-DEFAULT_CATEGORIES = """# Categories
-# Edit this memo to add, remove, or rename categories.
-# Format: - slug: Description of what goes in this box
-# The routing service watches this memo and syncs automatically.
+DEFAULT_CATEGORIES = """**Boxes** — type `#box/slug` to route, or let the LLM classify
 
-- inbox: Default landing box for unclassified memos
-- health: Medical appointments, fitness, body, transplant follow-ups
-- work: Career, job search, applications, professional development
-- finance: Money, debt, budget, investments
-- project/dissertation: Luddite Loop, academic work, research
+| Tag | What goes here | Example |
+| --- | --- | --- |
+| `#box/inbox` | Anything unclassified | "random thought about Tuesday" |
+| `#box/health` | Medical, fitness, body | "GP appointment next week" |
+| `#box/work` | Career, job search, professional | "applied to senior dev role" |
+| `#box/finance` | Money, debt, budget | "paid off credit card" |
+| `#box/project/dissertation` | Luddite Loop, academic | "chapter 3 draft notes" |
+| `#box/personal` | Relationships, home, life admin | "call mum" |
+| `#box/tech` | Hardware, software, dev | "upgrade to Ubuntu 24.04" |
+| `#box/learning` | Courses, reading, skills | "finished chapter 5 of DDIA" |
+
+- inbox: Anything unclassified
+- health: Medical, fitness, body
+- work: Career, job search, professional
+- finance: Money, debt, budget
+- project/dissertation: Luddite Loop, academic work
 - personal: Relationships, home, life admin
-- tech: Hardware, software, system administration, dev environment
+- tech: Hardware, software, dev environment
 - learning: Courses, reading, skill development
 """
 

@@ -252,25 +252,42 @@ class MemosAdapter:
         """
         Parse category definitions from the category memo content.
 
-        Expected format: markdown list where each line is `- slug: description`
+        Supports two formats:
+        1. Bullet list:  - slug: description
+        2. Table row:    | `#box/slug` | description | ... |
 
         Returns:
             List of {"slug": "...", "description": "..."}
         """
+        import re
         categories = []
+        seen_slugs = set()
+
         for line in content.split("\n"):
             line = line.strip()
+
+            # Format 1: bullet list — "- slug: description"
             if line.startswith("- ") and ":" in line:
-                # Strip the "- " prefix
                 entry = line[2:].strip()
                 slug, _, description = entry.partition(":")
                 slug = slug.strip().lower()
                 description = description.strip()
-                if slug:
-                    categories.append({
-                        "slug": slug,
-                        "description": description,
-                    })
+                if slug and slug not in seen_slugs:
+                    categories.append({"slug": slug, "description": description})
+                    seen_slugs.add(slug)
+                continue
+
+            # Format 2: table row — "| `#box/slug` | description | ... |"
+            if line.startswith("|") and "#box/" in line:
+                match = re.search(r"#box/([^\s`|]+)", line)
+                if match:
+                    slug = match.group(1).strip().lower()
+                    cells = [c.strip() for c in line.split("|") if c.strip()]
+                    description = cells[1] if len(cells) > 1 else ""
+                    if slug and slug not in seen_slugs:
+                        categories.append({"slug": slug, "description": description})
+                        seen_slugs.add(slug)
+
         return categories
 
     # ---- Lifecycle ----
