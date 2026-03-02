@@ -107,8 +107,6 @@ services:
     depends_on:
       memos:
         condition: service_healthy
-      db:
-        condition: service_healthy
 
 volumes:
   caddy-data:

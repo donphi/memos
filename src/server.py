@@ -108,8 +108,11 @@ async def receive_webhook(request: Request):
 
     memo_uid = _extract_uid(memo_data)
     content = memo_data.get("content", "")
-    # Memos v0.26+ puts tags at top-level "tags"; older versions use "property.tags"
-    tags = memo_data.get("tags") or memo_data.get("property", {}).get("tags", [])
+    # Webhook uses snake_case; REST API uses camelCase. Support both.
+    tags = (memo_data.get("tags")
+            or memo_data.get("property", {}).get("tags", []))
+    memo_timestamp = (memo_data.get("update_time")
+                      or memo_data.get("updateTime", ""))
     event_type_map = {"memos.memo.created": "created",
                       "memos.memo.updated": "updated",
                       "memos.memo.deleted": "deleted"}
@@ -130,7 +133,7 @@ async def receive_webhook(request: Request):
     event_logger.log_event(
         memo_uid=memo_uid, event_type=event_type, content=content,
         tags=tags, routed_to=category_slug, routing_method=routing_method,
-        memo_timestamp=memo_data.get("updateTime", ""),
+        memo_timestamp=memo_timestamp,
     )
     return {"status": "routed", "memo_uid": memo_uid,
             "category": category_slug, "method": routing_method}
