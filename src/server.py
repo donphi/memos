@@ -95,6 +95,20 @@ def _extract_uid(memo_data: dict) -> str:
     return name.split("/")[-1] if "/" in name else name
 
 
+def _extract_timestamp(memo_data: dict) -> str:
+    """Extract timestamp from webhook payload.
+
+    Memos webhook sends protobuf timestamps as {"seconds": 1234567890}.
+    REST API sends ISO strings like "2026-03-02T12:00:00Z". Handle both.
+    """
+    from datetime import datetime, timezone
+    ts = memo_data.get("update_time") or memo_data.get("updateTime", "")
+    if isinstance(ts, dict):
+        seconds = ts.get("seconds", 0)
+        return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat() if seconds else ""
+    return str(ts) if ts else ""
+
+
 @app.post("/webhook")
 async def receive_webhook(request: Request):
     try:
@@ -111,8 +125,7 @@ async def receive_webhook(request: Request):
     # Webhook uses snake_case; REST API uses camelCase. Support both.
     tags = (memo_data.get("tags")
             or memo_data.get("property", {}).get("tags", []))
-    memo_timestamp = (memo_data.get("update_time")
-                      or memo_data.get("updateTime", ""))
+    memo_timestamp = _extract_timestamp(memo_data)
     event_type_map = {"memos.memo.created": "created",
                       "memos.memo.updated": "updated",
                       "memos.memo.deleted": "deleted"}
