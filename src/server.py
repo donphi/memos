@@ -82,6 +82,19 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["GET", "POST"], allow_headers=["*"])
 
 
+def _extract_uid(memo_data: dict) -> str:
+    """Extract memo UID from webhook payload.
+
+    Memos v0.22+ removed the top-level 'uid' field from API/webhook payloads.
+    The UID now lives inside the 'name' field as 'memos/{uid}'.
+    """
+    uid = memo_data.get("uid", "")
+    if uid:
+        return uid
+    name = memo_data.get("name", "")
+    return name.split("/")[-1] if "/" in name else name
+
+
 @app.post("/webhook")
 async def receive_webhook(request: Request):
     try:
@@ -93,9 +106,10 @@ async def receive_webhook(request: Request):
     if not memo_data:
         return Response(status_code=400, content="No memo data")
 
-    memo_uid = memo_data.get("uid", "")
+    memo_uid = _extract_uid(memo_data)
     content = memo_data.get("content", "")
-    tags = memo_data.get("property", {}).get("tags", [])
+    # Memos v0.26+ puts tags at top-level "tags"; older versions use "property.tags"
+    tags = memo_data.get("tags") or memo_data.get("property", {}).get("tags", [])
     event_type_map = {"memos.memo.created": "created",
                       "memos.memo.updated": "updated",
                       "memos.memo.deleted": "deleted"}

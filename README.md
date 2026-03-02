@@ -12,71 +12,77 @@ The category list is a single pinned memo. Edit it from web or mobile, and the r
 
 ---
 
-## Architecture — 3 containers
+## Architecture — 4 services
 
 ```
 ┌─────────────────┐     ┌──────────────────────────┐
 │   Moe Memos     │     │  Memos Web UI            │
 │   (iPhone)      │     │  + JS category dropdown  │
 └────────┬────────┘     └────────┬─────────────────┘
-         │ API                   │ API
+         │ API                   │ HTTPS
          ▼                       ▼
 ┌──────────────────────────────────────────────────┐
-│     CONTAINER 1: Memos Server (memos/)           │
+│     SERVICE 1: Caddy (caddy/)                    │
 │                                                  │
-│  📌 Pinned category memo = source of truth       │
-│  Webhook fires on every create / update / delete │
-│  JS dropdown injection baked into image          │
-└────────────────────┬─────────────────────────────┘
-                     │ HTTP POST /webhook
-                     ▼
-┌──────────────────────────────────────────────────┐
-│     CONTAINER 3: API Router (api/)               │
+│  Automatic HTTPS for both domains.               │
+│  memos.yourdomain.com → memos-server:5230        │
+│  router.yourdomain.com → memos-router-api:8780   │
 │                                                  │
-│  1. Category memo changed? → re-sync DB          │
-│  2. Route memo: hashtag → content scan → LLM     │
-│  3. Log immutable event (snapshot + unified diff) │
-│  4. (Optional) Generate actions → git commit      │
-│  5. Serve /web-config for JS dropdown            │
+│  DNS: Both A records point to the SAME server IP │
 └────────────────────┬─────────────────────────────┘
                      │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-┌──────────┐  ┌───────────┐  ┌──────────────┐
-│CONTAINER │  │ LLM API   │  │ Git repo     │
-│2: DB     │  │ OpenRouter │  │ data/actions │
-│(database)│  │ Anthropic  │  │ (versioned)  │
-│PostgreSQL│  │ Ollama     │  └──────────────┘
-└──────────┘  └───────────┘
+         ┌───────────┴───────────┐
+         ▼                       ▼
+┌────────────────────┐  ┌──────────────────────────────┐
+│ SERVICE 2: Memos   │  │ SERVICE 4: API Router (api/) │
+│ (memos/)           │  │                              │
+│                    │  │ 1. Category memo changed?    │
+│ Pinned category    │──│    → re-sync DB              │
+│ memo = source of   │  │ 2. Route: hashtag → LLM     │
+│ truth              │  │ 3. Log immutable event       │
+│                    │  │ 4. (Optional) LLM actions    │
+│ Webhook fires on   │  │ 5. Serve /web-config for JS  │
+│ create/update/del  │  │                              │
+└────────────────────┘  └──────────────┬───────────────┘
+                                       │
+                           ┌───────────┼───────────┐
+                           ▼           ▼           ▼
+                    ┌──────────┐ ┌───────────┐ ┌──────────────┐
+                    │SERVICE 3 │ │ LLM API   │ │ Git repo     │
+                    │Database  │ │ OpenRouter │ │ data/actions │
+                    │(database)│ │ Anthropic  │ │ (versioned)  │
+                    │PostgreSQL│ │ Ollama     │ └──────────────┘
+                    └──────────┘ └───────────┘
 
 ┌──────────────────────────────────────────────────┐
 │     LOCAL SYNC (local/)                          │
 │                                                  │
-│  All 3 containers locally + sync.py to pull      │
+│  All 4 services locally + sync.py to pull        │
 │  data from remote for offline access / backup    │
 └──────────────────────────────────────────────────┘
 ```
 
-### Container summary
+### Service summary
 
-| # | Container | Directory | Purpose | Can run on |
-|---|-----------|-----------|---------|------------|
-| 1 | **Memos** | `memos/` | Memos server + JS injection | Railway, Supabase, any Docker host |
-| 2 | **Database** | `database/` | PostgreSQL for router data | Railway, Supabase, any Docker host, or skip (use SQLite / managed Postgres) |
-| 3 | **API** | `api/` | FastAPI router, webhook, LLM, events | Railway, Supabase, any Docker host |
-| 4 | **Local** | `local/` | Full local mirror + sync script | Your machine |
+| # | Service | Directory | Container name | Purpose | Can run on |
+|---|---------|-----------|----------------|---------|------------|
+| 1 | **Caddy** | `caddy/` | `caddy` | Reverse proxy, automatic HTTPS | Any Docker host |
+| 2 | **Memos** | `memos/` | `memos-server` | Memos server + JS injection | Railway, Supabase, any Docker host |
+| 3 | **Database** | `database/` | `memos-router-db` | PostgreSQL for router data | Railway, Supabase, any Docker host, or skip (use SQLite / managed Postgres) |
+| 4 | **API** | `api/` | `memos-router-api` | FastAPI router, webhook, LLM, events | Railway, Supabase, any Docker host |
+| — | **Local** | `local/` | — | Full local mirror + sync script | Your machine |
 
 ---
 
 ## Repository structure
 
 ```
-memos-router/
-├── docker-compose.yml          # 3-container orchestration
+memos/
+├── docker-compose.yml          # 4-service orchestration
 ├── .env.example                # Environment variable template
-├── .dockerignore               # Docker build exclusions
+├── .dockerignore
 ├── .gitignore
-├── requirements.txt            # Python dependencies (shared by API)
+├── requirements.txt            # Python deps (auto-generated from versions.yaml)
 │
 ├── config/                     # ALL configuration lives here
 │   ├── paths.yaml              # Every path, URL, directory, location
@@ -102,24 +108,99 @@ memos-router/
 │   ├── memos-category-dropdown.js  # Memos UI category picker injection
 │   └── generate_requirements.py    # Generates requirements.txt from versions.yaml
 │
-├── memos/                      # Container 1: Memos server
+├── caddy/                      # Service 1: Reverse proxy
+│   └── Caddyfile
+│
+├── memos/                      # Service 2: Memos server
 │   ├── Dockerfile
 │   └── README.md
 │
-├── database/                   # Container 2: PostgreSQL
+├── database/                   # Service 3: PostgreSQL
 │   ├── Dockerfile
 │   ├── init.sql
 │   └── README.md
 │
-├── api/                        # Container 3: FastAPI router
+├── api/                        # Service 4: FastAPI router
 │   ├── Dockerfile
 │   └── README.md
 │
-└── local/                      # Container 4: Local sync
+└── local/                      # Local sync
     ├── docker-compose.local.yml
     ├── sync.py
     └── README.md
 ```
+
+---
+
+## Quick start
+
+```bash
+# 1. Clone and configure
+git clone git@github.com:donphi/memos.git && cd memos
+cp .env.example .env
+# Edit .env: set MEMOS_API_TOKEN, POSTGRES_PASSWORD, MEMOS_DOMAIN, ROUTER_DOMAIN
+```
+
+### DNS setup
+
+Create **two A records** pointing to your server's IP — both use the **same IP**:
+
+```
+memos.yourdomain.com  → YOUR_SERVER_IP
+router.yourdomain.com → YOUR_SERVER_IP  (same server, same IP)
+```
+
+Caddy routes traffic to the correct container based on the domain name and auto-provisions HTTPS certificates.
+
+```bash
+# 2. Start all 4 services
+docker compose up -d
+
+# 3. Create the pinned category memo
+docker compose exec api python scripts/seed_categories.py
+# Copy the printed UID → paste into .env as CATEGORY_MEMO_UID
+
+# 4. Recreate the API container so it picks up the UID
+#    (docker compose restart does NOT re-read .env — you must recreate)
+docker compose up -d api
+
+# 5. Pin the category memo in Memos UI (star icon)
+
+# 6. Create the webhook in Memos:
+#    Go to: memos.yourdomain.com → Avatar → Settings → Webhooks → + Create
+#    Name: Router
+#    URL:  http://memos-router-api:8780/webhook
+#    (This is the Docker-internal hostname. Memos sends the POST from
+#     inside Docker, so it reaches the API container directly.)
+
+# 7. Install the JS category dropdown:
+#    Go to: Avatar → Settings → System → "Additional script"
+#    Paste the contents of: scripts/memos-category-dropdown.js
+#    Save and reload the page.
+
+# 8. Verify everything works
+curl http://localhost:8780/health
+# Should show: {"status":"ok","categories":8,...}
+
+# 9. Test: write a memo with #box/inbox, then check:
+curl http://localhost:8780/box/inbox
+# Should show your memo in the response.
+
+# 10. (Optional) Enable LLM classification
+#     Set LLM_API_KEY in .env
+#     Set LLM_CLASSIFY_ENABLED=true in .env
+#     docker compose up -d api
+```
+
+### Important: `docker compose restart` vs `docker compose up -d`
+
+`docker compose restart api` does **not** re-read `.env`. It just stops and starts the existing container with the old environment. To apply `.env` changes, always use:
+
+```bash
+docker compose up -d api
+```
+
+This recreates the container with the updated environment variables.
 
 ---
 
@@ -211,41 +292,6 @@ Secrets and deployment-specific values override YAML via env vars:
 
 ---
 
-## Quick start
-
-```bash
-# 1. Configure
-cp .env.example .env
-# Edit: MEMOS_API_TOKEN, POSTGRES_PASSWORD
-
-# 2. Start all 3 containers
-docker compose up -d
-
-# 3. Create category memo
-docker compose exec api python scripts/seed_categories.py
-# Copy printed UID → .env as CATEGORY_MEMO_UID
-
-# 4. Pin the category memo in Memos UI
-
-# 5. Configure webhook in Memos:
-#    Settings > Webhooks > Add
-#    URL: http://api:8780/webhook
-
-# 6. Install the category dropdown:
-#    Memos Admin > Settings > Custom Script
-#    Paste contents of scripts/memos-category-dropdown.js
-
-# 7. Restart with UID configured
-docker compose restart api
-
-# 8. (Optional) Enable LLM classification
-#    Set LLM_API_KEY in .env
-#    Set enable_llm_fallback: true in config/tuning.yaml
-#    docker compose restart api
-```
-
----
-
 ## API endpoints
 
 | Method | Path | Purpose |
@@ -259,8 +305,56 @@ docker compose restart api
 | GET | `/actions/{slug}/history` | Git log of action file changes. |
 | POST | `/actions/{slug}/revert` | Git revert last LLM change. |
 | GET | `/actions/{slug}/diff/{hash}` | Diff for a specific commit. |
-| GET | `/health` | Health check. |
-| GET | `/web-config` | Config values for JS injection. |
+| GET | `/health` | Health check with category count and LLM status. |
+| GET | `/web-config` | Config values for JS injection script. |
+
+---
+
+## Webhook setup
+
+Memos must be configured to send webhooks to the API container. Without this, no memos are routed or logged.
+
+**In the Memos UI:**
+1. Go to **Avatar → Settings → Webhooks → + Create**
+2. Name: `Router`
+3. URL: `http://memos-router-api:8780/webhook`
+
+The URL uses the Docker-internal container name `memos-router-api`. Memos sends the POST from inside Docker, so it reaches the API container directly on the shared network.
+
+**Verify it works:**
+
+```bash
+# Write a memo with #box/inbox in Memos, then:
+docker logs memos-router-api --tail 5
+# Should show: "POST /webhook HTTP/1.1" 200 OK
+
+curl http://localhost:8780/box/inbox
+# Should show your memo
+```
+
+**Verify the database directly:**
+
+```bash
+docker exec memos-router-db psql -U router -d memos_router \
+  -c "SELECT memo_uid, category_slug, routing_method, last_content_preview FROM memo_routings;"
+```
+
+Database credentials: user `router`, database `memos_router` (set in `docker-compose.yml`).
+
+---
+
+## Category management
+
+Categories are defined in a single **pinned memo** in Memos. The format uses a markdown table for readability and a bullet list for parsing:
+
+```markdown
+| Tag | Description | LLM example |
+|-----|-------------|-------------|
+| #box/inbox | Unsorted, default landing | "remind me to call dentist" |
+| #box/health | Physical & mental health | "ran 5k today, knee felt ok" |
+```
+
+When you edit this memo, the webhook fires and the API re-syncs categories automatically. To add or remove a category, just edit the pinned memo — no restart needed.
 
 ---
 
@@ -281,7 +375,7 @@ DATABASE_URL=sqlite:///data/router.db
 Start without the DB container:
 
 ```bash
-docker compose up -d memos api
+docker compose up -d caddy memos api
 ```
 
 ### Option 3: Supabase (managed Postgres)
@@ -289,7 +383,7 @@ docker compose up -d memos api
 1. Create a project at [supabase.com](https://supabase.com)
 2. Copy the connection URI from Project Settings > Database
 3. Set `DATABASE_URL` in `.env`
-4. Start without the DB container: `docker compose up -d memos api`
+4. Start without the DB container: `docker compose up -d caddy memos api`
 
 ### Option 4: Railway (managed Postgres)
 
@@ -319,6 +413,7 @@ llm:
 ```bash
 # .env
 LLM_API_KEY=sk-or-v1-xxxx
+LLM_CLASSIFY_ENABLED=true
 ```
 
 ### Anthropic (direct)
@@ -359,7 +454,7 @@ llm:
 ```bash
 ssh root@YOUR_IP
 curl -fsSL https://get.docker.com | sh
-git clone YOUR_REPO_URL && cd memos-router
+git clone YOUR_REPO_URL && cd memos
 cp .env.example .env
 # Edit .env with your values
 docker compose up -d
@@ -367,13 +462,13 @@ docker compose up -d
 
 ### Reverse proxy (Caddy — automatic HTTPS)
 
-Caddy is included in `docker-compose.yml` and configured via `caddy/Caddyfile`. It auto-provisions HTTPS certificates for both domains.
+Caddy is included as a service in `docker-compose.yml` and configured via `caddy/Caddyfile`. It auto-provisions HTTPS certificates for both domains.
 
-**DNS setup:** Create two A records pointing to your server's IP address — both use the **same IP**:
+**DNS setup:** Create two A records pointing to your server's IP address — both use the **same IP** (because both services run on the same server):
 
 ```
 memos.yourdomain.com  → YOUR_SERVER_IP
-router.yourdomain.com → YOUR_SERVER_IP  (same IP)
+router.yourdomain.com → YOUR_SERVER_IP  (same server, same IP)
 ```
 
 Caddy routes traffic to the correct container based on the domain name. Set the domains in `.env`:
@@ -383,7 +478,7 @@ MEMOS_DOMAIN=memos.yourdomain.com
 ROUTER_DOMAIN=router.yourdomain.com
 ```
 
-The JS category dropdown uses the router domain to fetch categories over HTTPS.
+The JS category dropdown uses the router domain (`router.yourdomain.com`) to fetch categories over HTTPS.
 
 ### Firewall
 
@@ -395,6 +490,21 @@ ufw enable
 ```
 
 Don't expose 5230, 5432, or 8780 directly — Caddy handles external access.
+
+---
+
+## JS category dropdown
+
+The `scripts/memos-category-dropdown.js` script adds category buttons above the Memos editor. When you click a button, it inserts the tag (e.g. `#box/health`) into the memo.
+
+**Installation:** Paste the script contents into Memos Admin → Settings → System → "Additional script". This is the [official Memos extensibility mechanism](https://www.usememos.com/docs/advanced-settings/custom-style-and-script).
+
+**How it discovers the router:** The script tries these URLs in order:
+1. `ROUTER_URL_OVERRIDE` (if set before the script)
+2. `router.<domain>` (convention: replaces first subdomain with "router")
+3. Same host on port 8780 (local/dev fallback)
+
+**Mobile:** The JS dropdown does not work on mobile apps (Moe Memos). Type `#box/health` manually — the webhook fires and routing works the same way. If LLM is enabled, untagged memos are classified automatically.
 
 ---
 
@@ -430,14 +540,6 @@ Only `src/memos_adapter.py` knows Memos API internals. Every other file uses sta
 
 ---
 
-## Mobile experience (Moe Memos)
-
-The pinned category memo is visible at the top of your feed. Type `#box/health` manually when writing a memo. The webhook fires, same routing logic applies.
-
-No category dropdown on mobile (native app can't execute custom JS). If LLM is enabled, it classifies automatically. Otherwise it lands as "unrouted".
-
----
-
 ## How git-tracked actions work
 
 When you call `POST /actions/health/generate`:
@@ -458,18 +560,35 @@ To see history: `GET /actions/health/history` — returns git log.
 ## Backups
 
 ```bash
-# Memos data
+# Memos data (bind mount from host)
+cp -r $MEMOS_DATA_DIR ./backup-memos-$(date +%Y%m%d)
+# Or from inside Docker:
 docker cp memos-server:/var/opt/memos ./backup-memos-$(date +%Y%m%d)
 
-# Database (Postgres)
-docker compose exec db pg_dump -U router memos_router > backup-db-$(date +%Y%m%d).sql
+# Router database (PostgreSQL)
+docker exec memos-router-db pg_dump -U router memos_router > backup-db-$(date +%Y%m%d).sql
 
-# Database (SQLite, if used)
+# Router database (SQLite, if used instead of Postgres)
 docker cp memos-router-api:/app/data/router.db ./backup-router-$(date +%Y%m%d).db
 
 # Action file git history
 docker cp memos-router-api:/app/data/actions ./backup-actions-$(date +%Y%m%d)
 ```
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `categories: 0` in `/health` | `CATEGORY_MEMO_UID` not set or container not recreated | Set UID in `.env`, then `docker compose up -d api` (not `restart`) |
+| Webhook not firing | No webhook configured in Memos | Create webhook: Avatar → Settings → Webhooks → URL: `http://memos-router-api:8780/webhook` |
+| `ModuleNotFoundError: No module named 'src'` | Missing PYTHONPATH in API container | Ensure `api/Dockerfile` has `ENV PYTHONPATH=/app` and rebuild |
+| `memos: []` in `/box/inbox` | Webhook not created, or wrong webhook URL | Check `docker logs memos-router-api --tail 10` for POST /webhook entries |
+| JS dropdown not appearing | Script not pasted, or wrong DOM selectors | Paste latest `scripts/memos-category-dropdown.js` into Admin → Settings → System → Additional script |
+| `docker compose restart` doesn't apply `.env` changes | `restart` reuses old container env | Always use `docker compose up -d <service>` to apply `.env` changes |
+| SSL errors from JS dropdown | Router domain not configured or DNS not pointing to server | Ensure `router.yourdomain.com` A record points to same IP as `memos.yourdomain.com` |
+| `role "memos" does not exist` when querying DB | Wrong Postgres credentials | Use: `docker exec memos-router-db psql -U router -d memos_router` |
 
 ---
 
@@ -486,8 +605,8 @@ Everything is in this repo:
 7. `src/memos_adapter.py` — the only file that touches Memos API specifics
 
 Data to migrate:
-- Memos volume (`memos-data`) — your actual memos
-- Router database (Postgres or SQLite)
+- Memos data directory (`$MEMOS_DATA_DIR`) — your actual memos
+- Router database (Postgres `postgres-data` volume, or SQLite file)
 - Actions git repo (`data/actions/`) — LLM output history
 
 ---

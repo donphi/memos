@@ -75,11 +75,13 @@ Then update `MEMOS_VERSION` in `.env` to match. Before upgrading:
 3. Check `src/memos_adapter.py` field mappings
 4. Rebuild: `docker compose up -d --build memos`
 
-## Volumes
+## Data persistence
 
-| Volume | Mount point | Purpose |
-|--------|-------------|---------|
-| `memos-data` | `/var/opt/memos` | All memo data, user accounts, settings |
+Memos data is stored via a **bind mount** from the host. Set `MEMOS_DATA_DIR` in `.env` to the host directory (e.g. `/opt/memos/data`). Docker Compose maps it to `/var/opt/memos` inside the container.
+
+| Host path | Container mount | Purpose |
+|-----------|-----------------|---------|
+| `$MEMOS_DATA_DIR` | `/var/opt/memos` | All memo data, user accounts, settings |
 
 ## Ports
 

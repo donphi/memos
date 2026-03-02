@@ -115,8 +115,8 @@ See the root README for full config documentation.
 docker compose exec api python scripts/seed_categories.py
 
 # Copy the printed UID into .env as CATEGORY_MEMO_UID
-# Then restart:
-docker compose restart api
+# Then recreate (restart does NOT re-read .env):
+docker compose up -d api
 ```
 
 ## Source files

@@ -8,7 +8,7 @@
 memos:
   base_url: "http://localhost:5230"       # Override: MEMOS_BASE_URL
   api_version: "v1"                       # Memos REST API version segment
-  webhook_url: "http://router:8780/webhook"  # URL printed in seed script instructions
+  webhook_url: "http://memos-router-api:8780/webhook"  # Docker-internal webhook URL
 
 # ---- Database ----
 database:
@@ -42,6 +42,6 @@ git:
 
 # ---- Container Networking ----
 containers:
-  memos_internal_url: "http://memos:5230"    # Docker-internal URL for memos
-  router_internal_url: "http://router:8780"  # Docker-internal URL for router
+  memos_internal_url: "http://memos-server:5230"       # Docker container_name for memos
+  router_internal_url: "http://memos-router-api:8780"  # Docker container_name for API
   db_internal_url: "postgresql://router:${POSTGRES_PASSWORD}@db:5432/memos_router"
